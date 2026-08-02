@@ -1,26 +1,25 @@
 import "dart:math" as m;
 
-double fourier(double Function(double) g, double f) {
-  const double RESOLUTION = 1000;
-  Complex Function(double) g_complex = (double t) => Complex(r: g(t));
+num fourier(num Function(num) g, num f) {
+  const int RESOLUTION = 100;
 
-  Complex integral = complexIntegral(-RESOLUTION, RESOLUTION, (double t) {
-    return g_complex(t) * Complex.pow(m.e, Complex(i: -2 * m.pi * f * t));
+  Complex integral = complexIntegral(-RESOLUTION, RESOLUTION, (num t) {
+    return Complex(r: g(t)) * Complex.pow(m.e, Complex(i: -2 * m.pi * f * t));
   });
 
   return Complex.magnitude(integral);
 }
 
-Complex complexIntegral(double t1, double t2, Complex Function(double) f) {
+Complex complexIntegral(num t1, num t2, Complex Function(num) f) {
   Complex integral_result = Complex();
-  const double N = 1000;
+  const int N = 10000;
   double delta_t = (t2 - t1) / N;
 
-  for (double j = 1; j <= N; j++) {
-    integral_result += f(t1 + delta_t * j) * Complex(r: delta_t);
+  for (int j = 1; j <= N; j++) {
+    integral_result += f(t1 + delta_t * j);
   }
 
-  return integral_result;
+  return integral_result * Complex(r: delta_t);
 }
 
 class Complex {
@@ -76,7 +75,10 @@ class Complex {
 }
 
 main() {
-  for (double f = 0; f < 6; f += .1) {
-    print('f: $f, ${fourier((double t) => m.sin(m.pi * t), f)}');
+  int target_hertz = 20;
+  for (int h = target_hertz - 5; h < target_hertz + 6; h += 1) {
+    print(
+      'h: $h, ${fourier((num t) => m.sin(target_hertz * 2 * m.pi * t), h)}',
+    );
   }
 }
