@@ -10,6 +10,44 @@ num fourier(num Function(num) g, num f) {
   return Complex.magnitude(integral);
 }
 
+// Currently works iff samples.length is a power of 2
+List<Complex> fft(List<num> samples) {
+  int N = samples.length;
+  if (N == 1) {
+    return [Complex(r: samples[0])];
+  }
+
+  int M = N ~/ 2;
+  List<num> evenSamples = List.filled(M, 0);
+  List<num> oddSamples = List.filled(M, 0);
+
+  for (int i = 0; i < M; i += 1) {
+    evenSamples[i] = samples[i * 2];
+    oddSamples[i] = samples[i * 2 + 1];
+  }
+
+  List<Complex> evenF = fft(evenSamples);
+  List<Complex> oddF = fft(oddSamples);
+
+  List<Complex> freqBins = List.filled(N, Complex());
+
+  for (int k = 0; k < M; k++) {
+    Complex exponential =
+        Complex.pow(m.e, Complex(i: -2 * m.pi * k / N)) * oddF[k];
+    freqBins[k] = evenF[k] + exponential;
+    freqBins[k + M] = evenF[k] - exponential;
+  }
+
+  return freqBins;
+}
+
+List<num> normalizeFft(List<Complex> fftOutput) {
+  return List.generate(
+    fftOutput.length ~/ 2,
+    (k) => Complex.magnitude(fftOutput[k] * Complex(r: 2)),
+  );
+}
+
 Complex complexIntegral(num t1, num t2, Complex Function(num) f) {
   Complex integral_result = Complex();
   const int N = 10000;
@@ -36,6 +74,10 @@ class Complex {
 
   Complex operator +(Complex other) {
     return Complex(r: this.r + other.r, i: this.i + other.i);
+  }
+
+  Complex operator -(Complex other) {
+    return Complex(r: this.r - other.r, i: this.i - other.i);
   }
 
   // Complex operator /(Complex other) {
@@ -74,11 +116,15 @@ class Complex {
   }
 }
 
+Function(double t) sinWaveHz(double hz) {
+  return (t) => m.sin(t * 2 * m.pi * hz);
+}
+
 main() {
-  int target_hertz = 20;
-  for (int h = target_hertz - 5; h < target_hertz + 6; h += 1) {
-    print(
-      'h: $h, ${fourier((num t) => m.sin(target_hertz * 2 * m.pi * t), h)}',
-    );
-  }
+  int samplingFreq = 1024;
+  List<double> sinDatapoints = List.generate(
+    samplingFreq,
+    (t) => sinWaveHz(1)(t / samplingFreq),
+  );
+  print(normalizeFft(fft(sinDatapoints)));
 }
