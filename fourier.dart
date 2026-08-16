@@ -1,4 +1,6 @@
 import "dart:math" as m;
+import "dart:io";
+import "dart:typed_data";
 
 num fourier(num Function(num) g, num f) {
   const int RESOLUTION = 100;
@@ -12,6 +14,11 @@ num fourier(num Function(num) g, num f) {
 
 // Currently works iff samples.length is a power of 2
 List<Complex> fft(List<num> samples) {
+  if (m.log(samples.length) / m.log(2) % 1 != 0) {
+    throw UnsupportedError(
+      "Must give a number of samples that is a power of 2",
+    );
+  }
   int N = samples.length;
   if (N == 1) {
     return [Complex(r: samples[0])];
@@ -41,7 +48,7 @@ List<Complex> fft(List<num> samples) {
   return freqBins;
 }
 
-List<num> normalizeFft(List<Complex> fftOutput) {
+List<num> getFftAmplitudes(List<Complex> fftOutput) {
   return List.generate(
     fftOutput.length ~/ 2,
     (k) => Complex.magnitude(fftOutput[k] * Complex(r: 2)),
@@ -116,15 +123,69 @@ class Complex {
   }
 }
 
-Function(double t) sinWaveHz(double hz) {
+Function(double t) sinWaveHz(num hz) {
   return (t) => m.sin(t * 2 * m.pi * hz);
 }
 
+// Only grabs the left channel from 16 bit PCM 2 channel interleaved
+List<num> getSamplesFromAudio(File audio) {
+  Uint8List bytes = audio.readAsBytesSync();
+  List<num> samples = List.empty(growable: true);
+  Iterator<int> iterator = bytes.iterator;
+  while (iterator.moveNext()) {
+    // WAV files are little endian
+    int lowerByte = iterator.current;
+    iterator.moveNext();
+    int higherByte = iterator.current;
+    samples.add(lowerByte + higherByte * 256);
+
+    // Skip over the right channel bytes
+    iterator.moveNext();
+    iterator.moveNext();
+  }
+
+  return samples;
+}
+
 main() {
-  int samplingFreq = 1024;
-  List<double> sinDatapoints = List.generate(
-    samplingFreq,
-    (t) => sinWaveHz(1)(t / samplingFreq),
+  File audio = File("output.pcm");
+
+  List<num> fullSamples = getSamplesFromAudio(audio);
+
+  print(fullSamples.length);
+  List<num> samples = fullSamples.sublist(0, 65536);
+  int samplingFreq = 48000;
+  int numSamples = samples.length;
+  double hz = 261.63;
+  double freqBinDelta = samplingFreq / numSamples;
+  int targetFreqBin = (hz / freqBinDelta).round();
+  // List<double> samples = List.generate(
+  //   numSamples,
+  //   (t) => sinWaveHz(hz)(t / samplingFreq),
+  // );
+
+  final stopwatch = Stopwatch();
+  stopwatch.start();
+  List<Complex> result = fft(samples);
+  stopwatch.stop();
+
+  List<num> fftResult = getFftAmplitudes(result);
+
+  //print(fftResult.sublist(2000, 3000));
+
+  num maxAmp = 0;
+  int maxIdx = 0;
+  for (int i = 100; i < fftResult.length; i++) {
+    if (fftResult[i] > maxAmp) {
+      maxAmp = fftResult[i];
+      maxIdx = i;
+    }
+  }
+
+  print(
+    "Time to calculate FFT for ${1000 * numSamples / samplingFreq} ms: ${stopwatch.elapsedMilliseconds}",
   );
-  print(normalizeFft(fft(sinDatapoints)));
+  print("Freq bin delta: $freqBinDelta");
+  print("Expected freq bin: $targetFreqBin, got $maxIdx");
+  print("Approximate frequency detected: ${maxIdx * freqBinDelta}");
 }
