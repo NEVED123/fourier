@@ -158,7 +158,7 @@ main() {
   int numSamples = samples.length;
   double hz = 261.63;
   double freqBinDelta = samplingFreq / numSamples;
-  int targetFreqBin = (hz / freqBinDelta).round();
+
   // List<double> samples = List.generate(
   //   numSamples,
   //   (t) => sinWaveHz(hz)(t / samplingFreq),
@@ -171,21 +171,19 @@ main() {
 
   List<num> fftResult = getFftAmplitudes(result);
 
-  //print(fftResult.sublist(2000, 3000));
-
-  num maxAmp = 0;
-  int maxIdx = 0;
-  for (int i = 100; i < fftResult.length; i++) {
-    if (fftResult[i] > maxAmp) {
-      maxAmp = fftResult[i];
-      maxIdx = i;
-    }
+  // Want to grab roughly every 1 hz.
+  int skip = (1 / freqBinDelta).ceil();
+  print(skip);
+  List<(num hz, num magnitude)> fftResultBins = [];
+  for (int i = 1; i < fftResult.length; i += skip) {
+    fftResultBins.add((i * freqBinDelta, fftResult[i]));
   }
+
+  fftResultBins.sort((a, b) => a.$2.compareTo(b.$2));
 
   print(
     "Time to calculate FFT for ${1000 * numSamples / samplingFreq} ms: ${stopwatch.elapsedMilliseconds}",
   );
   print("Freq bin delta: $freqBinDelta");
-  print("Expected freq bin: $targetFreqBin, got $maxIdx");
-  print("Approximate frequency detected: ${maxIdx * freqBinDelta}");
+  print("Top 5 frequencies: ${fftResultBins.reversed.toList().sublist(0, 5)}");
 }
